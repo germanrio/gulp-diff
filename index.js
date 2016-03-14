@@ -11,7 +11,23 @@ function pluginError(msg) {
   return new PluginError('gulp-diff', msg);
 }
 
-var diff = function diff(dest) {
+function checkChanges(diff) {
+    var hasChanges = false;
+    diff.forEach(function (part) {
+        if (part.added || part.removed) {
+            hasChanges = true;
+            return false;
+        }
+    });
+    return hasChanges;
+}
+
+var diff = function diff(dest, diffOptions) {
+  if ((typeof diffOptions === 'undefined') && (typeof dest === 'object')) {
+    diffOptions = dest;
+    dest = undefined;
+  }
+
   var stream = through2.obj(function(file, enc, cb) {
     if (file.isNull()) {
       return cb(null, file);
@@ -28,9 +44,11 @@ var diff = function diff(dest) {
             stream.emit('error', pluginError('Failed to read file: ' + errRead.message));
             return cb();
           }
-          if (contents !== String(file.contents)) {
+
+          var diff = diffLines(contents, String(file.contents), diffOptions);
+          if (checkChanges(diff)) {
             try {
-              file.diff = diffLines(fs.readFileSync(compareFile, 'utf8'), String(file.contents));
+              file.diff = diff;
             } catch (err) {
               stream.emit('error', pluginError('Failed to diff file: ' + err.message));
               return cb();
